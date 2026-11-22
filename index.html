@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1728">
+<title>Controle XPT</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{color-scheme:dark;--bg:#0b1220;--panel:#152238;--panel2:#1b2c45;--text:#f3f6fb;--muted:#aab9cf;--green:#22c55e;--red:#ef4444;--blue:#3b82f6;--line:#2b3e58}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#0b1728,#0b1220 55%);font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);padding:16px 14px calc(30px + env(safe-area-inset-bottom));max-width:720px;margin:auto}
+header{text-align:center;padding:12px 8px 20px}h1{margin:0;font-size:1.65rem;letter-spacing:.08em}header p{color:var(--muted);margin:5px 0}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 6px 20px #0002}
+h2{margin:0 0 12px;font-size:1.12rem;letter-spacing:.03em}.muted{color:var(--muted);font-size:.9rem}
+input{background:#0c1829;border:1px solid #40536e;border-radius:10px;color:var(--text);padding:12px;font-size:1rem;min-width:0}
+.addrow{display:flex;gap:8px}.addrow input{flex:1}
+button{border:0;border-radius:11px;padding:12px 14px;font-weight:750;font-size:1rem;color:white;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.98)}.primary{background:var(--green);color:#062413}.blue{background:var(--blue)}.minus{background:#42536a}.danger{background:#8f2932}.copy{background:#0ea5e9}.add{min-width:54px}
+.code-list{display:grid;gap:9px;margin-top:14px}.code-row{display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;background:var(--panel2);padding:10px;border-radius:12px}
+.code-name{font-weight:800;font-size:1.04rem}.count{font-size:1.35rem;font-weight:850;text-align:center;min-width:32px}
+.controls{display:flex;gap:6px;align-items:center}.controls button{padding:9px 12px}.delete{background:#642b36;padding:8px 10px}
+.counter{display:flex;align-items:center;justify-content:space-between;gap:10px}.counter-number{font-size:2rem;font-weight:900;min-width:60px;text-align:center}.counter-buttons{display:flex;gap:8px}
+.totals{display:grid;grid-template-columns:1fr 1fr;gap:10px}.total-box{background:#0d1b2c;border:1px solid var(--line);border-radius:12px;padding:12px}.total-box span{display:block;color:var(--muted);font-size:.84rem}.total-box strong{font-size:1.45rem}
+.total-final{grid-column:1/-1;background:#123724;border-color:#287848}.total-final strong{font-size:2rem}
+.report{white-space:pre-wrap;background:#0b1829;padding:14px;border-radius:12px;border:1px solid var(--line);font-family:ui-monospace,monospace;font-size:.94rem;line-height:1.5}
+.actions{display:grid;gap:9px}.small{font-size:.8rem;color:var(--muted);text-align:center;margin-top:14px}
+@media(min-width:520px){.counter-buttons button{min-width:85px}}
+</style>
+</head>
+<body>
+<header><h1>CONTROLE XPT</h1><p>Controle de Expedição</p></header>
+
+<section class="panel">
+<h2>📦 MANGAS</h2>
+<div class="addrow"><input id="newCode" placeholder="Digite o código (ex.: I2, G1, H3)" maxlength="20" autocomplete="off"><button class="primary add" id="addCode">+</button></div>
+<div class="muted" style="margin-top:8px">Adicione os códigos e conte com +1 ou corrija com −1.</div>
+<div class="code-list" id="codeList"></div>
+</section>
+
+<section class="panel">
+<h2>🧱 BIGs</h2>
+<div class="counter"><div class="counter-number" id="bigCount">0</div><div class="counter-buttons"><button class="minus" id="bigMinus">−1</button><button class="primary" id="bigPlus">+1 BIG</button></div></div>
+</section>
+
+<section class="panel">
+<h2>🗃️ GAIOLAS</h2>
+<div class="counter"><div class="counter-number" id="cageCount">0</div><div class="counter-buttons"><button class="minus" id="cageMinus">−1</button><button class="primary" id="cagePlus">+1 Gaiola</button></div></div>
+</section>
+
+<section class="panel">
+<h2>📊 TOTAL GERAL</h2>
+<div class="totals">
+<div class="total-box"><span>Total mangas</span><strong id="mangaTotal">0</strong></div>
+<div class="total-box"><span>Total BIGs</span><strong id="bigTotal">0</strong></div>
+<div class="total-box"><span>Total Gaiolas</span><strong id="cageTotal">0</strong></div>
+<div class="total-box total-final"><span>TOTAL GERAL</span><strong id="grandTotal">0</strong></div>
+</div>
+</section>
+
+<section class="panel">
+<h2>📋 FECHAMENTO XPT</h2>
+<div class="report" id="report"></div>
+<div class="actions" style="margin-top:12px"><button class="copy" id="copyReport">Copiar fechamento para WhatsApp</button><button class="danger" id="reset">Zerar fechamento / novo turno</button></div>
+</section>
+<p class="small">Seus dados ficam salvos neste aparelho. Evite limpar os dados do navegador para não perder a contagem.</p>
+<script>
+const KEY="controleXpt_v1";
+let state={codes:{},bigs:0,cages:0};
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&typeof s==="object")state={codes:s.codes||{},bigs:Number(s.bigs)||0,cages:Number(s.cages)||0}}catch(e){}}
+function save(){localStorage.setItem(KEY,JSON.stringify(state));render()}
+function mangaTotal(){return Object.values(state.codes).reduce((a,b)=>a+(Number(b)||0),0)}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]))}
+function reportText(){const codes=Object.entries(state.codes).sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true}));let out=["FECHAMENTO XPT","","MANGAS"];if(codes.length)codes.forEach(([c,n])=>out.push(`${c} - ${n}`));else out.push("(nenhum código registrado)");out.push("",`Total mangas: ${mangaTotal()}`,`BIGs: ${state.bigs}`,`Gaiolas: ${state.cages}`,`TOTAL GERAL: ${mangaTotal()+state.bigs+state.cages}`);return out.join("\n")}
+function render(){const list=document.getElementById("codeList");list.innerHTML="";Object.entries(state.codes).sort((a,b)=>a[0].localeCompare(b[0],undefined,{numeric:true})).forEach(([code,count])=>{const row=document.createElement("div");row.className="code-row";row.innerHTML=`<div><div class="code-name">${esc(code)}</div><div class="muted">Mangas: ${count}</div></div><div class="controls"><button class="minus" data-minus="${esc(code)}">−1</button><div class="count">${count}</div><button class="primary" data-plus="${esc(code)}">+1</button><button class="delete" title="Excluir código" data-del="${esc(code)}">×</button></div>`;list.appendChild(row)});
+document.getElementById("bigCount").textContent=state.bigs;document.getElementById("cageCount").textContent=state.cages;
+document.getElementById("mangaTotal").textContent=mangaTotal();document.getElementById("bigTotal").textContent=state.bigs;document.getElementById("cageTotal").textContent=state.cages;document.getElementById("grandTotal").textContent=mangaTotal()+state.bigs+state.cages;document.getElementById("report").textContent=reportText();
+}
+document.getElementById("addCode").onclick=()=>{const input=document.getElementById("newCode");const code=input.value.trim().toUpperCase();if(!code)return;if(!(code in state.codes))state.codes[code]=0;input.value="";save();input.blur()};
+document.getElementById("newCode").addEventListener("keydown",e=>{if(e.key==="Enter")document.getElementById("addCode").click()});
+document.getElementById("codeList").onclick=e=>{const plus=e.target.dataset.plus,minus=e.target.dataset.minus,del=e.target.dataset.del;if(plus){state.codes[plus]=(state.codes[plus]||0)+1;save()}else if(minus){state.codes[minus]=Math.max(0,(state.codes[minus]||0)-1);save()}else if(del){if(confirm(`Excluir o código ${del} e sua contagem?`)){delete state.codes[del];save()}}};
+document.getElementById("bigPlus").onclick=()=>{state.bigs++;save()};document.getElementById("bigMinus").onclick=()=>{state.bigs=Math.max(0,state.bigs-1);save()};
+document.getElementById("cagePlus").onclick=()=>{state.cages++;save()};document.getElementById("cageMinus").onclick=()=>{state.cages=Math.max(0,state.cages-1);save()};
+document.getElementById("copyReport").onclick=async()=>{const t=reportText();try{await navigator.clipboard.writeText(t);alert("Fechamento copiado! Agora é só colar no WhatsApp.")}catch(e){const ta=document.createElement("textarea");ta.value=t;document.body.appendChild(ta);ta.select();document.execCommand("copy");ta.remove();alert("Fechamento copiado! Agora é só colar no WhatsApp.")}};
+document.getElementById("reset").onclick=()=>{if(confirm("Tem certeza que deseja zerar todas as mangas, BIGs e gaiolas para um novo fechamento?")){state={codes:{},bigs:0,cages:0};save()}};
+load();render();
+if("serviceWorker" in navigator && location.protocol.startsWith("http"))navigator.serviceWorker.register("./sw.js").catch(()=>{});
+</script>
+</body>
+</html>
