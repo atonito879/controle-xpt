@@ -12,7 +12,7 @@
 <section class="card"><h2>Dados do carregamento</h2><div class="grid">
 <div><label for="date">Data</label><input type="date" id="date"></div><div><label for="period">Período</label><select id="period"><option>AM</option><option>PM</option></select></div>
 <div><label for="dock">Doca</label><input id="dock" placeholder="Número da doca" inputmode="numeric"></div><div><label for="carrier">Transportadora</label><input id="carrier" placeholder="Transportadora"></div>
-<div class="full"><label for="plate">Placa do caminhão</label><input id="plate" placeholder="ABC1D23" autocapitalize="characters"></div></div></section>
+<div class="full"><label for="plate">Placa do caminhão</label><input id="plate" placeholder="ABC1D23" autocapitalize="characters"></div><div class="full"><label for="destination">Destino do XPT</label><input id="destination" placeholder="Digite o destino do carregamento"></div></div></section>
 <section class="card"><h2>Horários da operação</h2><div class="grid">
 <div><label for="start">Início do carregamento</label><input type="text" id="start" class="clock" inputmode="numeric" maxlength="5" placeholder="08:00"></div>
 <div><label for="finish">Fim do carregamento</label><input type="text" id="finish" class="clock" inputmode="numeric" maxlength="5" placeholder="10:30"></div></div>
@@ -27,7 +27,7 @@
 const byId=(id)=>document.getElementById(id);
 const STORAGE='xpt-control-v2';
 let state={mangas:{},bigs:0,cages:0,meta:{}};
-const fields=['date','period','dock','carrier','plate','start','finish'];
+const fields=['date','period','dock','carrier','plate','destination','start','finish'];
 function meta(){const m={};fields.forEach(id=>m[id]=byId(id).value);return m;}
 function save(){state.meta=meta();try{localStorage.setItem(STORAGE,JSON.stringify(state));}catch(_e){} render();}
 function load(){try{const saved=JSON.parse(localStorage.getItem(STORAGE)||'null');if(saved&&typeof saved==='object')state={mangas:saved.mangas||{},bigs:Number(saved.bigs)||0,cages:Number(saved.cages)||0,meta:saved.meta||{}};}catch(_e){} fields.forEach(id=>{if(state.meta[id]!==undefined)byId(id).value=state.meta[id];});if(!byId('date').value)byId('date').value=new Date().toISOString().slice(0,10);render();}
@@ -41,7 +41,7 @@ const mt=codes.reduce((sum,c)=>sum+(Number(state.mangas[c])||0),0),total=mt+stat
 byId('summary').innerHTML=codes.map(c=>`<div class="totalrow"><span>${esc(c)}</span><strong>${Number(state.mangas[c])||0}</strong></div>`).join('')+`<div class="totalrow"><span>Total mangas</span><strong>${mt}</strong></div><div class="totalrow"><span>BIGs</span><strong>${state.bigs}</strong></div><div class="totalrow"><span>Gaiolas</span><strong>${state.cages}</strong></div><div class="totalrow bigTotal"><span>TOTAL GERAL</span><strong>${total}</strong></div>`;
 const m=meta();byId('durations').textContent=`Tempo de carregamento: ${duration(minutes(m.start,m.finish))}`;
 }
-function makeReport(){const m=meta(),codes=Object.keys(state.mangas).sort(),mt=codes.reduce((sum,c)=>sum+(Number(state.mangas[c])||0),0),total=mt+state.bigs+state.cages;return `FECHAMENTO XPT\nData: ${m.date||'—'}\nPeríodo: ${m.period||'—'}\nDoca: ${m.dock||'—'}\nTransportadora: ${m.carrier||'—'}\nPlaca: ${m.plate||'—'}\n\nHORÁRIOS\nInício do carregamento: ${m.start||'—'}\nFim do carregamento: ${m.finish||'—'}\nTempo de carregamento: ${duration(minutes(m.start,m.finish))}\n\nMANGAS\n${codes.map(c=>`${c} - ${state.mangas[c]}`).join('\n')||'Nenhuma'}\nTotal mangas: ${mt}\nBIGs: ${state.bigs}\nGaiolas: ${state.cages}\nTOTAL GERAL: ${total}`;}
+function makeReport(){const m=meta(),codes=Object.keys(state.mangas).sort(),mt=codes.reduce((sum,c)=>sum+(Number(state.mangas[c])||0),0),total=mt+state.bigs+state.cages;return `FECHAMENTO XPT\nData: ${m.date||'—'}\nPeríodo: ${m.period||'—'}\nDoca: ${m.dock||'—'}\nTransportadora: ${m.carrier||'—'}\nPlaca: ${m.plate||'—'}\nDestino do XPT: ${m.destination||'—'}\n\nHORÁRIOS\nInício do carregamento: ${m.start||'—'}\nFim do carregamento: ${m.finish||'—'}\nTempo de carregamento: ${duration(minutes(m.start,m.finish))}\n\nMANGAS\n${codes.map(c=>`${c} - ${state.mangas[c]}`).join('\n')||'Nenhuma'}\nTotal mangas: ${mt}\nBIGs: ${state.bigs}\nGaiolas: ${state.cages}\nTOTAL GERAL: ${total}`;}
 // Event delegation: mantém os cliques funcionando mesmo após redesenhar os contadores.
 document.addEventListener('click',async event=>{const button=event.target.closest('button');if(!button)return;
 if(button.id==='add'){addCode();return;}
