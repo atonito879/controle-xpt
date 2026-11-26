@@ -452,11 +452,109 @@ try{xptPlan=JSON.parse(localStorage.getItem(XPT_PLAN_KEY)||'null');}catch(e){}
 function xptB64Encode(obj){const bytes=new TextEncoder().encode(JSON.stringify(obj));let bin='';bytes.forEach(b=>bin+=String.fromCharCode(b));return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');}
 function xptB64Decode(str){str=str.replace(/-/g,'+').replace(/_/g,'/');while(str.length%4)str+='=';const bin=atob(str),bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));return JSON.parse(new TextDecoder().decode(bytes));}
 function xptMakePartLink(){saveCurrent();const x=selected();if(!x)return;const m=metaOf(x),part=$('xptSharePart').value,dock=String(m.dock||'').trim();if(!dock){alert('Selecione a doca do caminhão antes de gerar o link.');$('dock').focus();return;}let groupId=String($('xptSharedTruckId').value||'').trim();if(!groupId){const stamp=new Date().toISOString().replace(/[-:TZ.]/g,'').slice(0,14);groupId='XPT-'+stamp+'-'+Math.random().toString(36).slice(2,7).toUpperCase();$('xptSharedTruckId').value=groupId;}const linkId=String(x.id)+'-'+part+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,7);const payload={format:'CONTROLE_XPT_PARTILHA',version:3,groupId,operationId:groupId,shipmentDate:new Date().toISOString().slice(0,10),dock,sourceId:linkId,destination:m.destination||'',period:m.period||'',part,createdAt:new Date().toISOString(),data:{mangas:part==='all'||part==='mangas'?(x.mangas||{}):{},bigs:part==='all'||part==='bigs'?(Number(x.bigs)||0):0,cages:part==='all'||part==='cages'?(Number(x.cages)||0):0,cageCodes:part==='all'||part==='cages'?(Array.isArray(x.cageCodes)?x.cageCodes:[]):[]}};const url=location.origin+location.pathname+'#xpt-separacao='+xptB64Encode(payload);const msg='CONTROLE XPT — SEPARAÇÃO\nDoca: '+dock+'\nDestino: '+payload.destination+'\nPeríodo: '+payload.period+'\nIdentificador do caminhão: '+groupId+'\n\nAbra o Controle XPT, entre em Modo Conferência, selecione Doca '+dock+' e cole este link em Importar links recebidos:\n'+url;const status=$('xptShareStatus');const box=document.createElement('textarea');box.value=msg;document.body.appendChild(box);box.select();try{document.execCommand('copy');status.textContent='Link da Doca '+dock+' copiado. Agora cole no WhatsApp.';}catch(e){status.textContent='Link gerado: '+url;}box.remove();if(navigator.share){navigator.share({title:'Separação Controle XPT — Doca '+dock,text:msg}).catch(()=>{});}else{location.href='https://wa.me/?text='+encodeURIComponent(msg);}}
-function xptMergeIncomingLink(){const raw=$('xptIncomingLink').value.trim();if(!raw){alert('Cole primeiro o link recebido.');return;}try{const match=raw.match(/#xpt-separacao=([A-Za-z0-9_-]+)/);if(!match)throw Error('Esse link não contém uma separação do Controle XPT.');const part=xptB64Decode(match[1]);if(part.format!=='CONTROLE_XPT_PARTILHA'||!part.groupId||!part.sourceId||!part.dock)throw Error('Link de separação inválido ou sem número de doca.');const selectedDock=String($('xptCheckDock').value||'');if(selectedDock!==String(part.dock)){ $('xptLinkImportStatus').textContent='Este link pertence à Doca '+part.dock+'. Selecione essa mesma doca no campo Doca antes de importar.';return;}if(!xptPlan)xptPlan={format:'CONTROLE_XPT_RELACAO',version:2,createdAt:new Date().toISOString(),destinations:[],checked:{},imports:{}};if(!xptPlan.imports)xptPlan.imports={};if(xptPlan.imports[part.sourceId]){ $('xptLinkImportStatus').textContent='Este link já foi importado. Nenhum volume foi duplicado.';return;}let d=xptPlan.destinations.find(v=>v.groupId===part.groupId);
-if(!d){const current=xptCurrentPlanDest(),currentKey=current&&(current.groupId||current.destination),isBlank=current&&!(Object.keys(current.mangas||{}).length)&&!Number(current.bigs)&&!Number(current.cages)&&!current.destination;
- if(isBlank){const oldKey=current.groupId||current.destination;current.groupId=part.groupId;current.period=part.period||'';if(xptPlan.checked?.[oldKey]){xptPlan.checked[part.groupId]=xptPlan.checked[oldKey];delete xptPlan.checked[oldKey];}if(xptPlan.checkMeta?.[oldKey])delete xptPlan.checkMeta[oldKey];d=current;}
- else{d={groupId:part.groupId,destination:part.destination||'',period:part.period||'',mangas:{},bigs:0,cages:0,shipmentDate:part.shipmentDate||part.createdAt?.slice(0,10)||''};xptPlan.destinations.push(d);}
-}Object.entries(part.data?.mangas||{}).forEach(([code,n])=>d.mangas[code]=(Number(d.mangas[code])||0)+(Number(n)||0));d.bigs+=Number(part.data?.bigs)||0;d.cages+=Number(part.data?.cages)||0;if(!d.cageCodes)d.cageCodes=[];d.cageCodes.push(...(part.data?.cageCodes||[]));if(!xptPlan.checkMeta)xptPlan.checkMeta={};xptPlan.checkMeta[part.groupId]={...(xptPlan.checkMeta[part.groupId]||{}),dock:String(part.dock),destination:part.destination||'',date:part.shipmentDate||part.createdAt?.slice(0,10)||''};d.destination=d.destination||part.destination||'';d.period=d.period||part.period||'';d.shipmentDate=d.shipmentDate||part.shipmentDate||part.createdAt?.slice(0,10)||'';xptPlan.imports[part.sourceId]={part:part.part,at:new Date().toISOString()};localStorage.setItem(XPT_PLAN_KEY,JSON.stringify(xptPlan));$('xptIncomingLink').value='';$('xptImportDetails').open=false;$('xptLinkImportStatus').textContent='Link adicionado à operação '+part.groupId+'. Outros links com o mesmo código serão reunidos neste caminhão.';xptRenderCheck();$('xptCheckDestination').value=part.groupId;xptLoadCheckMeta();xptRenderCheckSummary();}catch(e){alert(e.message||'Não foi possível importar o link.');}}
+function xptMergeIncomingLink(){
+  const raw = $('xptIncomingLink').value.trim();
+  if(!raw){ alert('Cole primeiro o link recebido.'); return; }
+  try {
+    const match = raw.match(/#xpt-separacao=([A-Za-z0-9_-]+)/);
+    if(!match) throw Error('Esse link não contém uma separação do Controle XPT.');
+    const part = xptB64Decode(match[1]);
+    if(part.format !== 'CONTROLE_XPT_PARTILHA' || !part.groupId || !part.sourceId || !part.dock) {
+      throw Error('Link de separação inválido ou sem número de doca.');
+    }
+
+    const selectedDock = String($('xptCheckDock').value || '');
+    if(!selectedDock) {
+      $('xptCheckDock').value = String(part.dock);
+    } else if(selectedDock !== String(part.dock)) {
+      $('xptLinkImportStatus').textContent = 'Este link pertence à Doca ' + part.dock + '. Selecione essa mesma doca no campo Doca antes de importar.';
+      return;
+    }
+
+    if(!xptPlan) xptPlan = {format:'CONTROLE_XPT_RELACAO', version:2, createdAt:new Date().toISOString(), destinations:[], checked:{}, imports:{}};
+    if(!xptPlan.imports) xptPlan.imports = {};
+    if(xptPlan.imports[part.sourceId]){
+      $('xptLinkImportStatus').textContent = 'Este link já foi importado. Nenhum volume foi duplicado.';
+      return;
+    }
+
+    const partDate = part.shipmentDate || part.createdAt?.slice(0,10) || '';
+    let d = xptPlan.destinations.find(v => !xptIsCheckFinished(v) && v.groupId === part.groupId);
+    if(!d) {
+      d = xptPlan.destinations.find(v => {
+        if(xptIsCheckFinished(v)) return false;
+        const meta = (xptPlan.checkMeta || {})[v.groupId || v.destination] || {};
+        const sameDock = String(meta.dock || '') === String(part.dock);
+        const samePeriod = !v.period || !part.period || v.period === part.period;
+        const sameDate = !v.shipmentDate || !partDate || v.shipmentDate === partDate;
+        const compatibleDest = !v.destination || !part.destination || v.destination === part.destination;
+        return sameDock && samePeriod && sameDate && compatibleDest;
+      });
+    }
+
+    if(!d){
+      const current = xptCurrentPlanDest();
+      const currentKey = current && (current.groupId || current.destination);
+      const isBlank = current && !(Object.keys(current.mangas || {}).length) && !Number(current.bigs) && !Number(current.cages) && !current.destination;
+      if(isBlank){
+        const oldKey = current.groupId || current.destination;
+        current.groupId = part.groupId;
+        current.period = part.period || '';
+        if(xptPlan.checked?.[oldKey]){
+          xptPlan.checked[part.groupId] = xptPlan.checked[oldKey];
+          delete xptPlan.checked[oldKey];
+        }
+        if(xptPlan.checkMeta?.[oldKey]) delete xptPlan.checkMeta[oldKey];
+        d = current;
+      } else {
+        d = {
+          groupId: part.groupId,
+          destination: part.destination || '',
+          period: part.period || '',
+          mangas: {},
+          bigs: 0,
+          cages: 0,
+          shipmentDate: partDate
+        };
+        xptPlan.destinations.push(d);
+      }
+    }
+
+    Object.entries(part.data?.mangas || {}).forEach(([code, n]) => {
+      d.mangas[code] = (Number(d.mangas[code]) || 0) + (Number(n) || 0);
+    });
+    d.bigs += Number(part.data?.bigs) || 0;
+    d.cages += Number(part.data?.cages) || 0;
+    if(!d.cageCodes) d.cageCodes = [];
+    d.cageCodes = Array.from(new Set([...d.cageCodes, ...(part.data?.cageCodes || [])]));
+
+    const targetKey = d.groupId || part.groupId;
+    if(!xptPlan.checkMeta) xptPlan.checkMeta = {};
+    const prevMeta = xptPlan.checkMeta[targetKey] || {};
+    xptPlan.checkMeta[targetKey] = {
+      ...prevMeta,
+      dock: String(part.dock),
+      destination: prevMeta.destination || d.destination || part.destination || '',
+      date: prevMeta.date || partDate
+    };
+    d.destination = d.destination || part.destination || '';
+    d.period = d.period || part.period || '';
+    d.shipmentDate = d.shipmentDate || partDate;
+
+    xptPlan.imports[part.sourceId] = { part: part.part, at: new Date().toISOString() };
+    localStorage.setItem(XPT_PLAN_KEY, JSON.stringify(xptPlan));
+
+    $('xptIncomingLink').value = '';
+    $('xptImportDetails').open = false;
+    $('xptLinkImportStatus').textContent = 'Volumes reunidos na Doca ' + part.dock + ' (' + targetKey + ').';
+    xptRenderCheck();
+    $('xptCheckDestination').value = targetKey;
+    xptLoadCheckMeta();
+    xptRenderCheckSummary();
+  } catch(e) {
+    alert(e.message || 'Não foi possível importar o link.');
+  }
+}
 function xptSaveCfg(){localStorage.setItem(XPT_CFG_KEY,JSON.stringify(xptCfg));xptRenderCfg();xptFillSelects();$('xptCheckDock').innerHTML='<option value="">Selecione a doca</option>'+Array.from({length:50},(_,i)=>String(i+1)).map(v=>`<option value="${v}">Doca ${v}</option>`).join('');}
 function xptFillSelects(){[['destination',xptCfg.destinations],['dock',xptCfg.docks],['xptManualDestination',xptCfg.destinations]].forEach(([id,items])=>{const el=$(id);if(!el)return;const old=el.value;el.innerHTML='<option value="">Selecione</option>'+items.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')+(old&&!items.includes(old)?`<option value="${esc(old)}">${esc(old)}</option>`:'');el.value=old;});}
 function xptRenderCfg(){ $('xptDestinationList').innerHTML=xptCfg.destinations.length?xptCfg.destinations.map((v,i)=>`<div class="xpt-row"><span>${esc(v)}</span><button class="btn delete small" data-xpt-del-dest="${i}">Excluir</button></div>`).join(''):'<div class="xpt-small">Nenhum destino cadastrado.</div>'; $('xptDockList').innerHTML=xptCfg.docks.length?xptCfg.docks.map((v,i)=>`<div class="xpt-row"><span>${esc(v)}</span><button class="btn delete small" data-xpt-del-dock="${i}">Excluir</button></div>`).join(''):'<div class="xpt-small">Nenhuma doca cadastrada.</div>'; $('xptTheme').value=xptCfg.theme||'light';$('xptCageCodes').checked=!!xptCfg.cageCodes;if($('xptStartCheckCageQr'))$('xptStartCheckCageQr').hidden=!xptCfg.cageCodes;if($('xptSepCageQrArea'))$('xptSepCageQrArea').classList.toggle('xpt-hidden',!xptCfg.cageCodes);document.body.classList.toggle('xpt-dark',xptCfg.theme==='dark');}
